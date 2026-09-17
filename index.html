@@ -56,6 +56,7 @@
       <li><a href="#home">Mover el proyecto a /home/usuario/web</a></li>
       <li><a href="#ftp">Instalar y configurar FTP</a></li>
       <li><a href="#fpm">Instalar PHP-FPM</a></li>
+      <li><a href="#php-errors">Mostrar errores de PHP en pantalla</a></li>
       <li><a href="#apache-fpm">Conectar Apache con PHP-FPM</a></li>
       <li><a href="#php-test">Crear un PHP de prueba</a></li>
       <li><a href="#diag">Comprobaciones y problemas frecuentes</a></li>
@@ -234,8 +235,52 @@ sudo systemctl status php8.3-fpm</code></pre>
     </div>
   </section>
 
+  <section id="php-errors">
+    <h2>8. Configurar php.ini para mostrar errores en pantalla</h2>
+    <div class="warn note">
+      Mostrar errores en pantalla es útil durante el desarrollo, pero no debe dejarse activo en producción: los mensajes pueden revelar rutas, consultas y datos internos del servidor.
+    </div>
+
+    <div class="card">
+      <p>Como Apache está conectado con PHP-FPM, debes editar el <code>php.ini</code> de FPM, no solo el de PHP CLI:</p>
+      <pre><code>sudo nano /etc/php/8.3/fpm/php.ini</code></pre>
+
+      <p>Busca estas directivas y déjalas así (si empiezan por <code>;</code>, quita el punto y coma):</p>
+      <pre><code>display_errors = On
+display_startup_errors = On
+error_reporting = E_ALL</code></pre>
+
+      <p>Guarda el archivo y reinicia PHP-FPM para aplicar los cambios:</p>
+      <pre><code>sudo systemctl restart php8.3-fpm
+sudo systemctl reload apache2</code></pre>
+
+      <h3>Comprobar que se muestran los errores</h3>
+      <p>Crea temporalmente un archivo de prueba:</p>
+      <pre><code>nano /home/alumno/web/errores.php</code></pre>
+
+      <p>Escribe este contenido:</p>
+      <pre><code>&lt;?php
+echo $variable_que_no_existe;
+echo '&lt;p&gt;Si ves un aviso de PHP, la configuración funciona.&lt;/p&gt;';</code></pre>
+
+      <p>Abre <code>http://IP_DE_LA_VM/errores.php</code>. Deberías ver el aviso de PHP en la página.</p>
+
+      <div class="ok note">
+        Cuando termines las pruebas, elimina el archivo y desactiva la visualización en pantalla:
+        <pre><code>rm /home/alumno/web/errores.php
+sudo nano /etc/php/8.3/fpm/php.ini</code></pre>
+        <pre><code>display_errors = Off
+display_startup_errors = Off
+error_reporting = E_ALL
+log_errors = On</code></pre>
+        <p>Después aplica de nuevo el cambio:</p>
+        <pre><code>sudo systemctl restart php8.3-fpm</code></pre>
+      </div>
+    </div>
+  </section>
+
   <section id="apache-fpm">
-    <h2>8. Conectar Apache con PHP-FPM</h2>
+    <h2>9. Conectar Apache con PHP-FPM</h2>
     <div class="card">
       <p>Apache debe enviar los archivos PHP al proceso PHP-FPM mediante FastCGI.</p>
 
@@ -257,7 +302,7 @@ sudo systemctl restart apache2</code></pre>
   </section>
 
   <section id="php-test">
-    <h2>9. Crear un PHP sencillo para probar PHP-FPM</h2>
+    <h2>10. Crear un PHP sencillo para probar PHP-FPM</h2>
     <div class="card">
       <p>Elimina o renombra temporalmente el <code>index.html</code> para que Apache pueda mostrar <code>index.php</code>:</p>
       <pre><code>mv /home/alumno/web/index.html /home/alumno/web/index.html.bak</code></pre>
@@ -295,7 +340,7 @@ echo '&lt;p&gt;Fecha del servidor: ' . date('d/m/Y H:i:s') . '&lt;/p&gt;';
   </section>
 
   <section id="diag">
-    <h2>10. Comprobaciones y problemas frecuentes</h2>
+    <h2>11. Comprobaciones y problemas frecuentes</h2>
 
     <div class="card">
       <h3>Apache no abre desde el ordenador</h3>
