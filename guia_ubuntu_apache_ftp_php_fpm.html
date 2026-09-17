@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía completa: Ubuntu Server + Apache + FTP + PHP-FPM</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#fff; --text:#172033; --muted:#667085;
+    --line:#d9e0ea; --accent:#2f6fed; --code:#111827; --ok:#0f766e; --warn:#9a6700;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.55}
+  header{background:linear-gradient(135deg,#172033,#263a66);color:white;padding:48px 20px}
+  header .wrap, main{max-width:1050px;margin:auto}
+  h1{margin:0 0 10px;font-size:clamp(2rem,5vw,3.4rem);line-height:1.05}
+  header p{margin:0;max-width:780px;color:#dbe5ff;font-size:1.08rem}
+  main{padding:28px 18px 60px}
+  .toc,.card,.note,.check{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin:18px 0;box-shadow:0 2px 8px rgba(16,24,40,.04)}
+  .toc a{color:var(--accent);text-decoration:none}
+  h2{margin-top:38px;font-size:1.7rem}
+  h3{margin-top:26px;font-size:1.2rem}
+  code{font-family:Consolas,Monaco,monospace}
+  pre{background:var(--code);color:#f9fafb;padding:16px;border-radius:10px;overflow:auto;position:relative}
+  pre code{white-space:pre}
+  .note{border-left:5px solid var(--accent)}
+  .warn{border-left:5px solid #d97706;background:#fffaf0}
+  .ok{border-left:5px solid var(--ok);background:#f0fdfa}
+  .small{color:var(--muted);font-size:.95rem}
+  table{width:100%;border-collapse:collapse;background:white;border:1px solid var(--line)}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}
+  th{background:#eef3fb}
+  .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8eefc;color:#284c99;font-size:.85rem;font-weight:700}
+  .step{counter-reset:item}
+  .cmd::before{content:"$ ";color:#67e8f9}
+  .footer{color:var(--muted);text-align:center;margin-top:40px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <span class="badge">DWES · Práctica de servidor</span>
+    <h1>Ubuntu Server + Apache + FTP + PHP-FPM</h1>
+    <p>Guía unificada para crear una máquina virtual con Ubuntu Server, instalar Apache, configurar FTP, mover el proyecto web a <code>/home/usuario/web</code>, instalar PHP-FPM y comprobarlo con un PHP sencillo.</p>
+  </div>
+</header>
+
+<main>
+  <div class="toc">
+    <strong>Índice</strong>
+    <ol>
+      <li><a href="#vm">Preparar la máquina virtual</a></li>
+      <li><a href="#ubuntu">Instalar Ubuntu Server</a></li>
+      <li><a href="#red">Configurar la red para acceder desde el ordenador</a></li>
+      <li><a href="#apache">Instalar Apache</a></li>
+      <li><a href="#home">Mover el proyecto a /home/usuario/web</a></li>
+      <li><a href="#ftp">Instalar y configurar FTP</a></li>
+      <li><a href="#fpm">Instalar PHP-FPM</a></li>
+      <li><a href="#apache-fpm">Conectar Apache con PHP-FPM</a></li>
+      <li><a href="#php-test">Crear un PHP de prueba</a></li>
+      <li><a href="#diag">Comprobaciones y problemas frecuentes</a></li>
+    </ol>
+  </div>
+
+  <section id="vm">
+    <h2>1. Preparar la máquina virtual</h2>
+    <div class="card">
+      <p>Instala un programa de virtualización en el ordenador anfitrión. VirtualBox es una opción válida en Windows, Linux y macOS.</p>
+      <p>Descarga la imagen ISO de <strong>Ubuntu Server 24.04 LTS</strong>. En equipos Intel/AMD utiliza la imagen AMD64. En Mac con Apple Silicon utiliza una imagen ARM64 y un hipervisor compatible.</p>
+      <h3>Configuración recomendada de la VM</h3>
+      <table>
+        <tr><th>Recurso</th><th>Valor recomendado</th></tr>
+        <tr><td>CPU</td><td>2 núcleos</td></tr>
+        <tr><td>RAM</td><td>2–4 GB</td></tr>
+        <tr><td>Disco</td><td>25 GB dinámicos</td></tr>
+        <tr><td>Red</td><td>Adaptador puente, o NAT + redirección de puertos</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="ubuntu">
+    <h2>2. Instalar Ubuntu Server</h2>
+    <div class="card">
+      <ol>
+        <li>Arranca la VM con la ISO de Ubuntu Server montada.</li>
+        <li>Selecciona idioma y teclado.</li>
+        <li>Configura la red por DHCP, salvo que necesites IP fija.</li>
+        <li>Usa el disco virtual completo para la instalación.</li>
+        <li>Crea un usuario, por ejemplo <code>alumno</code>.</li>
+        <li>Marca <strong>Install OpenSSH server</strong> si quieres administrar la VM por SSH.</li>
+        <li>Finaliza la instalación y reinicia.</li>
+      </ol>
+      <p>Tras iniciar sesión, actualiza el sistema:</p>
+      <pre><code>sudo apt update
+sudo apt upgrade -y</code></pre>
+    </div>
+  </section>
+
+  <section id="red">
+    <h2>3. Configurar la red para acceder desde el ordenador</h2>
+    <div class="card">
+      <p>La opción más sencilla para una práctica es <strong>Adaptador puente</strong>. La VM recibirá una IP de la misma red que el ordenador anfitrión.</p>
+      <p>Consulta la IP:</p>
+      <pre><code>ip a
+hostname -I</code></pre>
+      <p>Ejemplo:</p>
+      <pre><code>192.168.1.80</code></pre>
+      <p>Desde el navegador del ordenador anfitrión usarás:</p>
+      <pre><code>http://192.168.1.80</code></pre>
+    </div>
+  </section>
+
+  <section id="apache">
+    <h2>4. Instalar Apache</h2>
+    <div class="card">
+      <pre><code>sudo apt install apache2 -y
+sudo systemctl enable --now apache2
+sudo systemctl status apache2</code></pre>
+      <p>Comprueba desde el ordenador anfitrión:</p>
+      <pre><code>http://IP_DE_LA_VM</code></pre>
+      <p>Si aparece la página por defecto de Apache, el servidor web funciona.</p>
+    </div>
+  </section>
+
+  <section id="home">
+    <h2>5. Mover el proyecto de Apache a /home/usuario/web</h2>
+    <div class="note">
+      Sustituye <code>usuario</code> por el usuario real de Ubuntu. En los ejemplos se utilizará <code>alumno</code>.
+    </div>
+
+    <div class="card">
+      <h3>5.1 Crear la carpeta</h3>
+      <pre><code>mkdir -p /home/alumno/web</code></pre>
+
+      <h3>5.2 Permitir que Apache pueda atravesar el directorio personal</h3>
+      <p>Apache se ejecuta con el usuario <code>www-data</code>. Aunque la carpeta <code>web</code> tenga permisos correctos, Apache debe poder atravesar <code>/home/alumno</code>.</p>
+      <pre><code>chmod 711 /home/alumno</code></pre>
+      <p class="small"><code>711</code> permite atravesar el directorio sin permitir que otros usuarios listen su contenido.</p>
+
+      <h3>5.3 Permisos del proyecto</h3>
+      <pre><code>sudo chown -R alumno:alumno /home/alumno/web
+find /home/alumno/web -type d -exec chmod 755 {} \;
+find /home/alumno/web -type f -exec chmod 644 {} \;</code></pre>
+
+      <div class="warn note">
+        Evita <code>chmod -R 777</code>. No es necesario y concede permisos de escritura a cualquier usuario.
+      </div>
+
+      <h3>5.4 Configurar Apache</h3>
+      <p>Crea un sitio propio:</p>
+      <pre><code>sudo nano /etc/apache2/sites-available/dwes.conf</code></pre>
+      <p>Contenido:</p>
+      <pre><code>&lt;VirtualHost *:80&gt;
+    ServerName localhost
+    DocumentRoot /home/alumno/web
+
+    &lt;Directory /home/alumno/web&gt;
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    &lt;/Directory&gt;
+
+    ErrorLog ${APACHE_LOG_DIR}/dwes_error.log
+    CustomLog ${APACHE_LOG_DIR}/dwes_access.log combined
+&lt;/VirtualHost&gt;</code></pre>
+
+      <p>Activa el sitio y desactiva el predeterminado:</p>
+      <pre><code>sudo a2dissite 000-default.conf
+sudo a2ensite dwes.conf
+sudo apache2ctl configtest
+sudo systemctl reload apache2</code></pre>
+
+      <h3>5.5 Crear una página HTML de prueba</h3>
+      <pre><code>echo '&lt;h1&gt;Servidor DWES funcionando&lt;/h1&gt;' &gt; /home/alumno/web/index.html</code></pre>
+      <p>Abre:</p>
+      <pre><code>http://IP_DE_LA_VM</code></pre>
+    </div>
+  </section>
+
+  <section id="ftp">
+    <h2>6. Instalar y configurar FTP</h2>
+    <div class="card">
+      <p>Para la práctica se puede utilizar <strong>vsftpd</strong>:</p>
+      <pre><code>sudo apt install vsftpd -y
+sudo systemctl enable --now vsftpd
+sudo cp /etc/vsftpd.conf /etc/vsftpd.conf.backup
+sudo nano /etc/vsftpd.conf</code></pre>
+
+      <p>Comprueba o añade estas opciones:</p>
+      <pre><code>anonymous_enable=NO
+local_enable=YES
+write_enable=YES
+chroot_local_user=YES
+allow_writeable_chroot=YES</code></pre>
+
+      <p>Reinicia el servicio:</p>
+      <pre><code>sudo systemctl restart vsftpd
+sudo systemctl status vsftpd</code></pre>
+
+      <p>Desde un cliente FTP utiliza:</p>
+      <table>
+        <tr><th>Dato</th><th>Valor</th></tr>
+        <tr><td>Servidor</td><td>IP de la VM</td></tr>
+        <tr><td>Puerto</td><td>21</td></tr>
+        <tr><td>Usuario</td><td>alumno</td></tr>
+        <tr><td>Contraseña</td><td>la contraseña del usuario</td></tr>
+      </table>
+
+      <div class="warn note">
+        FTP clásico no cifra credenciales ni datos. Para uso real, utiliza SFTP sobre SSH. Aquí FTP se emplea con finalidad didáctica.
+      </div>
+    </div>
+  </section>
+
+  <section id="fpm">
+    <h2>7. Instalar PHP-FPM</h2>
+    <div class="ok note">
+      <strong>No necesitas instalar primero mod_php.</strong> Si vas a usar PHP-FPM, puedes instalar directamente PHP-FPM y PHP CLI con las extensiones necesarias.
+    </div>
+
+    <div class="card">
+      <p>En Ubuntu Server 24.04 la versión habitual es PHP 8.3:</p>
+      <pre><code>sudo apt install php8.3-fpm php8.3-cli php8.3-curl php8.3-mbstring php8.3-xml php8.3-zip -y</code></pre>
+
+      <p>Comprueba la versión:</p>
+      <pre><code>php -v</code></pre>
+
+      <p>Activa PHP-FPM:</p>
+      <pre><code>sudo systemctl enable --now php8.3-fpm
+sudo systemctl status php8.3-fpm</code></pre>
+
+      <p>PHP-FPM escucha normalmente mediante un socket Unix:</p>
+      <pre><code>ls -l /run/php/php8.3-fpm.sock</code></pre>
+    </div>
+  </section>
+
+  <section id="apache-fpm">
+    <h2>8. Conectar Apache con PHP-FPM</h2>
+    <div class="card">
+      <p>Apache debe enviar los archivos PHP al proceso PHP-FPM mediante FastCGI.</p>
+
+      <pre><code>sudo a2enmod proxy_fcgi setenvif
+sudo a2enconf php8.3-fpm
+sudo apache2ctl configtest
+sudo systemctl restart apache2</code></pre>
+
+      <p>Comprueba que los módulos están activos:</p>
+      <pre><code>apache2ctl -M | grep -E 'proxy_fcgi|setenvif'</code></pre>
+
+      <p>Y que la configuración de FPM está habilitada:</p>
+      <pre><code>ls -l /etc/apache2/conf-enabled/php8.3-fpm.conf</code></pre>
+
+      <div class="note">
+        Flujo de la petición: <strong>Navegador → Apache → PHP-FPM → Apache → Navegador</strong>.
+      </div>
+    </div>
+  </section>
+
+  <section id="php-test">
+    <h2>9. Crear un PHP sencillo para probar PHP-FPM</h2>
+    <div class="card">
+      <p>Elimina o renombra temporalmente el <code>index.html</code> para que Apache pueda mostrar <code>index.php</code>:</p>
+      <pre><code>mv /home/alumno/web/index.html /home/alumno/web/index.html.bak</code></pre>
+
+      <p>Crea:</p>
+      <pre><code>nano /home/alumno/web/index.php</code></pre>
+
+      <p>Contenido:</p>
+      <pre><code>&lt;?php
+$nombre = 'DWES';
+
+echo '&lt;h1&gt;PHP-FPM funciona&lt;/h1&gt;';
+echo '&lt;p&gt;Servidor: ' . htmlspecialchars($nombre) . '&lt;/p&gt;';
+echo '&lt;p&gt;Versión PHP: ' . PHP_VERSION . '&lt;/p&gt;';
+echo '&lt;p&gt;Fecha del servidor: ' . date('d/m/Y H:i:s') . '&lt;/p&gt;';
+</code></pre>
+
+      <p>Desde el ordenador anfitrión abre:</p>
+      <pre><code>http://IP_DE_LA_VM/</code></pre>
+
+      <p>Deberías ver el mensaje <strong>PHP-FPM funciona</strong>, la versión de PHP y la fecha del servidor.</p>
+
+      <h3>Comprobación adicional</h3>
+      <p>También puedes crear temporalmente:</p>
+      <pre><code>echo '&lt;?php phpinfo(); ?&gt;' &gt; /home/alumno/web/info.php</code></pre>
+      <p>Abre:</p>
+      <pre><code>http://IP_DE_LA_VM/info.php</code></pre>
+      <p>Busca <strong>Server API</strong>. Debe aparecer una referencia a <strong>FPM/FastCGI</strong>.</p>
+
+      <div class="warn note">
+        Después de comprobarlo, elimina <code>info.php</code>, ya que revela mucha información del servidor:
+        <pre><code>rm /home/alumno/web/info.php</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="diag">
+    <h2>10. Comprobaciones y problemas frecuentes</h2>
+
+    <div class="card">
+      <h3>Apache no abre desde el ordenador</h3>
+      <pre><code>sudo systemctl status apache2
+hostname -I</code></pre>
+      <p>Comprueba también que la VM está en modo puente o que tienes configurada la redirección de puertos.</p>
+
+      <h3>Error 403 Forbidden</h3>
+      <pre><code>namei -l /home/alumno/web
+ls -ld /home/alumno
+ls -ld /home/alumno/web</code></pre>
+      <p>El directorio personal debe permitir el paso a Apache, y el bloque <code>&lt;Directory&gt;</code> debe incluir <code>Require all granted</code>.</p>
+
+      <h3>Los PHP se descargan o se muestran como texto</h3>
+      <pre><code>sudo systemctl status php8.3-fpm
+sudo a2enmod proxy_fcgi setenvif
+sudo a2enconf php8.3-fpm
+sudo systemctl restart apache2</code></pre>
+
+      <h3>Error 500</h3>
+      <p>Consulta los logs:</p>
+      <pre><code>sudo tail -f /var/log/apache2/dwes_error.log
+sudo journalctl -u php8.3-fpm -f</code></pre>
+
+      <h3>Comprobar configuración de Apache</h3>
+      <pre><code>sudo apache2ctl configtest</code></pre>
+
+      <h3>Reiniciar servicios</h3>
+      <pre><code>sudo systemctl restart apache2
+sudo systemctl restart php8.3-fpm
+sudo systemctl restart vsftpd</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>Resultado final</h2>
+    <div class="check">
+      <p>Al terminar tendrás:</p>
+      <ul>
+        <li>Ubuntu Server ejecutándose en una máquina virtual.</li>
+        <li>Apache accesible desde el ordenador anfitrión.</li>
+        <li>El proyecto web en <code>/home/alumno/web</code>.</li>
+        <li>FTP mediante vsftpd para transferir archivos.</li>
+        <li>PHP 8.3 ejecutándose mediante PHP-FPM.</li>
+        <li>Apache conectado con PHP-FPM mediante FastCGI.</li>
+        <li>Un <code>index.php</code> sencillo funcionando desde el navegador.</li>
+      </ul>
+    </div>
+  </section>
+
+  <p class="footer">Guía práctica para Desarrollo Web en Entorno Servidor · Ubuntu Server 24.04 LTS</p>
+</main>
+</body>
+</html>
